@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -56,7 +57,7 @@ int main() {
 
   freeaddrinfo(servinfo);
 
-  if ((numbytes == recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1) {
+  if ((numbytes = recv(sockfd, buf, MAXDATASIZE - 1, 0)) == -1) {
     perror("recv");
     exit(1);
   }
