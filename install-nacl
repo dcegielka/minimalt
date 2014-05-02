@@ -1,0 +1,16 @@
+#!/bin/sh
+FILENAME=nacl-20110221
+
+if [ ! -e $FILENAME ]
+then
+  echo 'Downloading...'
+  wget http://hyperelliptic.org/nacl/$FILENAME.tar.bz2 || exit 1
+fi
+
+echo 'Unpacking...'
+tar xaf $FILENAME.tar.bz2 || exit 1
+cd $FILENAME
+echo 'Installing... (this might take a while, and not show any output; be patient)'
+./do
+cd ..
+mv -T $FILENAME/build/`hostname` nacl
