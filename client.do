@@ -1,3 +1,3 @@
 deps="client.o net.o"
-redo-ifchange $deps
+redo-ifchange cc $deps
 ./cc -g -o $3 $deps

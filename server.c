@@ -1,90 +1,82 @@
+#define _POSIX_C_SOURCE 200112L
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <netinet/in.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 #include <netdb.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include "net.h"
+#include <arpa/inet.h>
+#include "server.h"
 
-int main() {
-  int sockfd,
-      new_fd;
-  struct addrinfo hints, *servinfo, *p;
-  struct sockaddr_storage their_addr;
-  socklen_t sin_size;
-  struct sigaction sa;
-  int yes = 1;
-  char s[INET6_ADDRSTRLEN];
-  int rv;
+error mlt_server_init(struct mlt_server *server, const char *port) {
+  struct addrinfo hints,
+                  *server_info;
 
   memset(&hints, 0, sizeof hints);
-  hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
-  hints.ai_flags = AI_PASSIVE;
+  hints.ai_family   = AF_UNSPEC;
+  hints.ai_socktype = SOCK_DGRAM;
+  hints.ai_flags    = AI_PASSIVE;
 
-  if ((rv = getaddrinfo(NULL, "8000", &hints, &servinfo)) != 0) {
-    fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
-    return 1;
+  int err;
+  if ((err = getaddrinfo(NULL, port, &hints, &server_info))) {
+    return gai_strerror(err);
   }
 
-  for (p = servinfo; p != NULL; p = p->ai_next) {
-    if ((sockfd = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-      perror("server: socket");
+  int sock;
+
+  for (struct addrinfo *p = server_info;; p = p->ai_next) {
+    if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
       continue;
     }
 
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int)) == -1) {
-      perror("setsockopt");
-      exit(1);
+    int yes = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
+      close(sock);
+      return strerror(errno);
     }
 
-    if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
-      close(sockfd);
-      perror("server: bind");
+    if (bind(sock, p->ai_addr, p->ai_addrlen) == -1) {
+      close(sock);
       continue;
     }
 
     break;
-  }
-
-  if (!p) {
-    fprintf(stderr, "server: failed to bind\n");
-    return 2;
-  }
-
-  freeaddrinfo(servinfo);
-
-  if (listen(sockfd, 10) == -1) {
-    perror("listen");
-    exit(1);
-  }
-
-  puts("Listening on 8000...");
-
-  for (;;) {
-    sin_size = sizeof their_addr;
-    new_fd = accept(sockfd, (struct sockaddr*)&their_addr, &sin_size);
-
-    if (new_fd == -1) {
-      perror("accept");
-      continue;
+    
+    if (!p->ai_next) {
+      return "Could not bind to any of the addresses.";
     }
-
-    inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr*)&their_addr), s, sizeof s);
-    printf("server got connection from %s\n", s);
-
-    if (send(new_fd, "Hello, world!", 13, 0) == -1) {
-      perror("send");
-    }
-
-    close(new_fd);
   }
 
-  return 0;
+  freeaddrinfo(server_info);
+
+  server->sock = sock;
+
+  return NULL;
+}
+
+error mlt_server_accept(struct mlt_server *server) {
+  struct sockaddr_storage remote_addr;
+  socklen_t               sin_size = sizeof remote_addr;
+
+  char buffer[100];
+
+  ssize_t nread = recvfrom(server->sock, buffer, 100, 0, (struct sockaddr*)&remote_addr, &sin_size);
+
+  if (nread < 0) {
+    return "Read error.";
+  }
+
+  buffer[nread] = '\0';
+
+  printf("Got %s\n", buffer);
+
+  return NULL;
+}
+
+void mlt_server_close(struct mlt_server *server) {
+  close(server->sock);
 }
 

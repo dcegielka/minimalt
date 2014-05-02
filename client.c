@@ -20,7 +20,7 @@ int main() {
 
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_UNSPEC;
-  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_socktype = SOCK_DGRAM;
 
   if ((rv = getaddrinfo("127.0.0.1", "8000", &hints, &servinfo)) != 0) {
     fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(rv));
@@ -46,6 +46,10 @@ int main() {
     fprintf(stderr, "client failed to connect\n");
     return 2;
   }
+
+  const char *message = "Hello from client";
+
+  send(sockfd, message, strlen(message), 0);
 
   inet_ntop(p->ai_family, get_in_addr((struct sockaddr*)p->ai_addr), s, sizeof s);
   printf("client connecting to %s\n", s);
