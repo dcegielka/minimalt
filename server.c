@@ -9,7 +9,17 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <stdbool.h>
 #include "server.h"
+#include "format.h"
+
+#define PUBLICKEY_FLAG (1L >> 63)
+#define PUZZLE_FLAG    (1L >> 62)
+#define TID_FLAGS      (PUBLICKEY_FLAG | PUZZLE_FLAG)
+
+#define TID_SIZE 8
+#define NONCE_SIZE  crypto_box_NONCEBYTES
+#define PUZZLE_SIZE 8
 
 error mlt_server_init(struct mlt_server *server, const char *port) {
   struct addrinfo hints,
@@ -61,7 +71,7 @@ error mlt_server_accept(struct mlt_server *server) {
   struct sockaddr_storage remote_addr;
   socklen_t               sin_size = sizeof remote_addr;
 
-  char buffer[100];
+  uint8_t buffer[100];
 
   ssize_t nread = recvfrom(server->sock, buffer, 100, 0, (struct sockaddr*)&remote_addr, &sin_size);
 
@@ -72,19 +82,23 @@ error mlt_server_accept(struct mlt_server *server) {
   // TODO: Check nread to make sure all these things are in place, that some things aren't
   // negative, etc.
   // TODO: Also deal with the whole crypto_box_BOXZEROBYTES requirement.
-  uint64_t tidWithFlags = readIntLE64(buffer),
+  uint64_t tidWithFlags = readUintLE64(buffer),
            tid          = tidWithFlags ^ TID_FLAGS;
-  bool     hasPubkey    = tidWithFlags & PUBKEY_FLAG,
+  bool     hasPublickey = tidWithFlags & PUBLICKEY_FLAG,
            hasPuzzle    = tidWithFlags & PUZZLE_FLAG;
 
-  size_t headerSize  = TID_SIZE + NONCE_SIZE + hasPubkey*PUBKEY_SIZE + hasPuzzle*PUZZLE_SIZE,
+  size_t headerSize  = TID_SIZE + NONCE_SIZE + hasPublickey*mlt_PUBLICKEY_SIZE + hasPuzzle*PUZZLE_SIZE,
          contentSize = nread - headerSize;
 
-  char message[100];
+  uint8_t secretbuffer[100+crypto_box_BOXZEROBYTES],
+          message[100+crypto_box_BOXZEROBYTES];
 
-  crypto_box_open(&buffer[headerSize], &buffer[headerSize], contentSize, &buffer[TID_SIZE], &buffer[TID_SIZE + NONCE_SIZE], server->privkey);
+  memset(secretbuffer, 0, crypto_box_BOXZEROBYTES);
+  memcpy(&secretbuffer[crypto_box_BOXZEROBYTES], &buffer[headerSize], contentSize);
 
-  printf("Got %s\n", buffer);
+  crypto_box_open(&buffer[headerSize], message, contentSize, &buffer[TID_SIZE], &buffer[TID_SIZE + NONCE_SIZE], server->secretkey);
+
+  printf("On tid %lu got %s\n", tid, message);
 
   return NULL;
 }
