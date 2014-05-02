@@ -1,0 +1,6 @@
+.redo
+a.out
+server
+client
+*.d
+*.o
