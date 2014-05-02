@@ -69,7 +69,20 @@ error mlt_server_accept(struct mlt_server *server) {
     return "Read error.";
   }
 
-  buffer[nread] = '\0';
+  // TODO: Check nread to make sure all these things are in place, that some things aren't
+  // negative, etc.
+  // TODO: Also deal with the whole crypto_box_BOXZEROBYTES requirement.
+  uint64_t tidWithFlags = readIntLE64(buffer),
+           tid          = tidWithFlags ^ TID_FLAGS;
+  bool     hasPubkey    = tidWithFlags & PUBKEY_FLAG,
+           hasPuzzle    = tidWithFlags & PUZZLE_FLAG;
+
+  size_t headerSize  = TID_SIZE + NONCE_SIZE + hasPubkey*PUBKEY_SIZE + hasPuzzle*PUZZLE_SIZE,
+         contentSize = nread - headerSize;
+
+  char message[100];
+
+  crypto_box_open(&buffer[headerSize], &buffer[headerSize], contentSize, &buffer[TID_SIZE], &buffer[TID_SIZE + NONCE_SIZE], server->privkey);
 
   printf("Got %s\n", buffer);
 
