@@ -6,6 +6,6 @@
 uint64_t readUintLE64(uint8_t *buffer);
 void     writeUintLE64(uint8_t *buffer, uint64_t n);
 
-void showHex(uint8_t *buffer, size_t len);
+void showhex(uint8_t *buffer, size_t len);
 
 #endif

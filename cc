@@ -1,2 +1,2 @@
 #!/bin/bash
-gcc -Wall -Werror -std=c99 $*
+gcc -Wall -Werror -Wextra -std=c99 $*

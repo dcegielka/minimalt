@@ -23,7 +23,7 @@ void writeUintLE64(uint8_t *buffer, uint64_t n) {
   buffer[7] = n >> 0x38;
 }
 
-void showHex(uint8_t *buffer, size_t len) {
+void showhex(uint8_t *buffer, size_t len) {
   for (size_t i = 0; i < len; ++i) {
     printf("%02x", buffer[i]);
   }
