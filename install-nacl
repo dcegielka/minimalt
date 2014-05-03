@@ -1,16 +1,29 @@
-#!/bin/sh
-FILENAME=nacl-20110221
+#!/bin/bash -e
+dir=nacl-20110221
+buildname=`hostname | sed 's/\..*//' | tr -cd '[a-z][A-Z][0-9]'`
 
-if [ ! -e $FILENAME ]
+if [ ! -e $dir.tar.bz2 ]
 then
   echo 'Downloading...'
-  wget http://hyperelliptic.org/nacl/$FILENAME.tar.bz2 || exit 1
+  wget http://hyperelliptic.org/nacl/$dir.tar.bz2
 fi
 
-echo 'Unpacking...'
-tar xaf $FILENAME.tar.bz2 || exit 1
-cd $FILENAME
-echo 'Installing... (this might take a while, and not show any output; be patient)'
-./do
-cd ..
-mv -T $FILENAME/build/`hostname` nacl
+if [ ! -e $dir ]
+then
+  echo 'Unpacking...'
+  tar xaf $dir.tar.bz2
+fi
+
+if [ ! -e $dir/build/$buildname ]
+then
+  cd $dir
+  echo 'Building... (no output will be shown, and it will take a while; please be patient)'
+  "./do"
+  cd ..
+fi
+
+if [ ! -e nacl ]
+then
+  ln -s $dir/build/$buildname nacl
+fi
+
