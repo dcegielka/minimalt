@@ -22,6 +22,7 @@
 #define PUZZLE_SIZE 8
 
 error mlt_server_init(struct mlt_server *server, const char *port) {
+  int err;
   struct addrinfo hints,
                   *server_info;
 
@@ -30,7 +31,6 @@ error mlt_server_init(struct mlt_server *server, const char *port) {
   hints.ai_socktype = SOCK_DGRAM;
   hints.ai_flags    = AI_PASSIVE;
 
-  int err;
   if ((err = getaddrinfo(NULL, port, &hints, &server_info))) {
     return gai_strerror(err);
   }
@@ -71,13 +71,15 @@ error mlt_server_accept(struct mlt_server *server) {
   struct sockaddr_storage remote_addr;
   socklen_t               sin_size = sizeof remote_addr;
 
-  uint8_t buffer[100];
+  uint8_t buffer[1000];
 
-  ssize_t nread = recvfrom(server->sock, buffer, 100, 0, (struct sockaddr*)&remote_addr, &sin_size);
+  ssize_t nread = recvfrom(server->sock, buffer, 1000, 0, (struct sockaddr*)&remote_addr, &sin_size);
 
   if (nread < 0) {
     return "Read error.";
   }
+
+  printf("Read %ld bytes\n", nread);
 
   // TODO: Check nread to make sure all these things are in place, that some things aren't
   // negative, etc.
@@ -90,15 +92,64 @@ error mlt_server_accept(struct mlt_server *server) {
   size_t headerSize  = TID_SIZE + NONCE_SIZE + hasPublickey*mlt_PUBLICKEY_SIZE + hasPuzzle*PUZZLE_SIZE,
          contentSize = nread - headerSize;
 
-  uint8_t secretbuffer[100+crypto_box_BOXZEROBYTES],
-          message[100+crypto_box_BOXZEROBYTES];
+  uint8_t secretbuffer[1000+crypto_box_BOXZEROBYTES],
+          message[1000+crypto_box_BOXZEROBYTES];
 
   memset(secretbuffer, 0, crypto_box_BOXZEROBYTES);
   memcpy(&secretbuffer[crypto_box_BOXZEROBYTES], &buffer[headerSize], contentSize);
 
+  printf("TID    "); showHex(buffer, TID_SIZE); printf("\n");
+  printf("Nonce  "); showHex(&buffer[TID_SIZE], NONCE_SIZE); printf("\n");
+  printf("Pubkey "); showHex(&buffer[TID_SIZE+NONCE_SIZE], mlt_PUBLICKEY_SIZE); printf("\n");
+  printf("Secret "); showHex(&buffer[TID_SIZE+NONCE_SIZE+mlt_PUBLICKEY_SIZE], crypto_box_ZEROBYTES + 15); printf("\n");
+
   crypto_box_open(&buffer[headerSize], message, contentSize, &buffer[TID_SIZE], &buffer[TID_SIZE + NONCE_SIZE], server->secretkey);
 
   printf("On tid %lu got %s\n", tid, message);
+
+  return NULL;
+}
+
+error mlt_server_connect(struct mlt_server *server, const char *host, const char *port) {
+  int err;
+  struct addrinfo hints, *remote_info;
+
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family   = AF_UNSPEC;
+  hints.ai_socktype = SOCK_DGRAM;
+
+  if ((err = getaddrinfo(host, port, &hints, &remote_info))) {
+    return gai_strerror(err);
+  }
+
+  const char *message = "Attack at dawn.";
+
+  uint8_t buffer[TID_SIZE + NONCE_SIZE + mlt_PUBLICKEY_SIZE + crypto_box_ZEROBYTES + 20];
+
+  uint64_t tid = 123 | PUBLICKEY_FLAG;
+
+  uint8_t publickey[mlt_PUBLICKEY_SIZE],
+          secretkey[mlt_SECRETKEY_SIZE];
+
+  crypto_box_keypair(publickey, secretkey);
+
+  memset(buffer, 0, sizeof buffer);
+  writeUintLE64(buffer, tid);
+
+  memcpy(&buffer[TID_SIZE + NONCE_SIZE], publickey, mlt_PUBLICKEY_SIZE);
+  memcpy(&buffer[TID_SIZE + NONCE_SIZE + mlt_PUBLICKEY_SIZE + crypto_box_ZEROBYTES], message, strlen(message));
+
+  crypto_box(&buffer[TID_SIZE + NONCE_SIZE + mlt_PUBLICKEY_SIZE], &buffer[TID_SIZE + NONCE_SIZE + mlt_PUBLICKEY_SIZE], strlen(message) + crypto_box_ZEROBYTES, &buffer[TID_SIZE], publickey, secretkey);
+
+  // We might need to iterates the addrinfo like in accept above.
+  int nsent = sendto(server->sock, buffer, TID_SIZE + NONCE_SIZE + mlt_PUBLICKEY_SIZE + crypto_box_ZEROBYTES + strlen(message), 0, remote_info->ai_addr, remote_info->ai_addrlen);
+
+  printf("TID    "); showHex(buffer, TID_SIZE); printf("\n");
+  printf("Nonce  "); showHex(&buffer[TID_SIZE], NONCE_SIZE); printf("\n");
+  printf("Pubkey "); showHex(&buffer[TID_SIZE+NONCE_SIZE], mlt_PUBLICKEY_SIZE); printf("\n");
+  printf("Secret "); showHex(&buffer[TID_SIZE+NONCE_SIZE+mlt_PUBLICKEY_SIZE], crypto_box_ZEROBYTES + strlen(message)); printf("\n");
+
+  printf("Sent %d\n", nsent);
 
   return NULL;
 }

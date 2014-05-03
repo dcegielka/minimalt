@@ -1,4 +1,5 @@
 #include "format.h"
+#include <stdio.h>
 
 uint64_t readUintLE64(uint8_t *buffer) {
   return ((uint64_t)buffer[0] << 0x00) |
@@ -9,5 +10,22 @@ uint64_t readUintLE64(uint8_t *buffer) {
          ((uint64_t)buffer[5] << 0x28) |
          ((uint64_t)buffer[6] << 0x30) |
          ((uint64_t)buffer[7] << 0x38);
+}
+
+void writeUintLE64(uint8_t *buffer, uint64_t n) {
+  buffer[0] = n >> 0x00;
+  buffer[1] = n >> 0x08;
+  buffer[2] = n >> 0x10;
+  buffer[3] = n >> 0x18;
+  buffer[4] = n >> 0x20;
+  buffer[5] = n >> 0x28;
+  buffer[6] = n >> 0x30;
+  buffer[7] = n >> 0x38;
+}
+
+void showHex(uint8_t *buffer, size_t len) {
+  for (size_t i = 0; i < len; ++i) {
+    printf("%02x", buffer[i]);
+  }
 }
 

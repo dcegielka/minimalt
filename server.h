@@ -15,6 +15,7 @@ struct mlt_server {
 
 error mlt_server_init(struct mlt_server *server, const char *port);
 error mlt_server_accept(struct mlt_server *server);
+error mlt_server_connect(struct mlt_server *server, const char *host, const char *port);
 void mlt_server_close(struct mlt_server *server);
 
 #endif
