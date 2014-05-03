@@ -1,1 +1,1 @@
-redo-ifchange client server
+redo-ifchange client server tests/all
