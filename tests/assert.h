@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include "../error.h"
 
 #define RED   "\x1b[31m"
 #define GREEN "\x1b[32m"
@@ -17,6 +18,15 @@ void assert(const char *message, bool condition) {
   } else {
     fprintf(stderr, RED " " FAILURE " %s\n" CLEAR, message);
     exit(1);
+  }
+}
+
+void assertError(const char *message, error err) {
+  if (err) {
+    fprintf(stderr, RED " " FAILURE " %s: %s\n" CLEAR, message, err);
+    exit(1);
+  } else {
+    fprintf(stderr, GREEN " " SUCCESS " %s\n" CLEAR, message);
   }
 }
 
