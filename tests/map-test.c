@@ -8,25 +8,26 @@ int main() {
 
     map_init(&map);
 
-    assertEq("Map starts with zero used", map.used, 0);
-    assertEq("Map starts with zero capacity", map.capacity, 0);
+    char key1[] = "This is a really long key.",
+         key2[] = "Another key.";
 
-    assertError("map_set (1)", map_set(&map, 0, (void*)123));
-    assertEq("Map now has one used", map.used, 1);
-    assertEq("Map now has one capacity", map.capacity, 1);
-    assertEq("Key is now retrievable", map_get(&map, 0), (void*)123);
+    assertError("map_set (1)", map_set(&map, key1, sizeof key1, (void*)123));
+    assertEq("Key is now retrievable", map_get(&map, key1, sizeof key1), (void*)123);
 
-    assertError("map_set (2)", map_set(&map, 123, (void*)456));
-    assertEq("Map now has two used", map.used, 2);
-    assertEq("Map now has two capacity", map.capacity, 2);
-    assertEq("New key is now retrievable", map_get(&map, 123), (void*)456);
-    assertEq("Old key is still retrievable (1)", map_get(&map, 0), (void*)123);
+    assertError("map_set (2)", map_set(&map, key2, sizeof key2, (void*)456));
+    assertEq("New key is now retrievable", map_get(&map, key2, sizeof key2), (void*)456);
+    assertEq("Old key is still retrievable (1)", map_get(&map, key1, sizeof key1), (void*)123);
 
-    assertError("map_set existing", map_set(&map, 0, (void*)789));
-    assertEq("Map still has two used", map.used, 2);
-    assertEq("Map now has four capacity", map.capacity, 4);
-    assertEq("Key has updated value", map_get(&map, 0), (void*)789);
-    assertEq("Old key is still retrievable (2)", map_get(&map, 123), (void*)456);
+    assertError("map_set existing", map_set(&map, key1, sizeof key1, (void*)789));
+    assertEq("Key has updated value", map_get(&map, key1, sizeof key1), (void*)789);
+    assertEq("Old key is still retrievable (2)", map_get(&map, key2, sizeof key2), (void*)456);
+
+    assertError("map_set small key (1)", map_set(&map, (void*)1, 0, (void*)10));
+    assertError("map_set small key (2)", map_set(&map, (void*)2, 0, (void*)20));
+    assertEq("Can retrieve short key (1)", map_get(&map, (void*)1, 0), (void*)10);
+    assertEq("Can retrieve short key (2)", map_get(&map, (void*)2, 0), (void*)20);
+
+    map_free(&map);
   }
 }
 

@@ -12,13 +12,35 @@
 #include <stdbool.h>
 #include "server.h"
 #include "format.h"
+#include "nacl/include/amd64/randombytes.h"
+
+struct tunnel {
+};
 
 static const uint64_t publickeyFlag = 1UL << 63,
                       puzzleFlag    = 1UL << 62,
                       tidFlags      = (1UL << 63) | (1UL << 62);
 
-static const size_t tidSize    = 8,
-                    nonceSize  = crypto_box_NONCEBYTES;
+static const size_t tidSize   = sizeof(uint64_t),
+                    nonceSize = crypto_box_NONCEBYTES;
+
+static uint64_t pickTid(struct mlt_server *server) {
+  uint64_t tid;
+
+  do {
+    randombytes((unsigned char*)&tid, sizeof tid);
+  } while (map_get(&server->tunnelsByTid, (void*)tid, 0) != NULL);
+
+  return tid;
+}
+
+static void *getInAddr(struct sockaddr *sa) {
+  if (sa->sa_family == AF_INET) {
+    return &(((struct sockaddr_in*)sa)->sin_addr);
+  } else {
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
+  }
+}
 
 error mlt_server_init(struct mlt_server *server, const char *port) {
   int err;
@@ -44,13 +66,28 @@ error mlt_server_init(struct mlt_server *server, const char *port) {
     int yes = 1;
     if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
       close(sock);
-      return strerror(errno);
+      continue;
     }
 
     if (bind(sock, p->ai_addr, p->ai_addrlen) == -1) {
       close(sock);
       continue;
     }
+
+    char addrstr[mlt_ADDRSTR_SIZE];
+
+    struct sockaddr *addr = p->ai_addr;
+
+    if (!inet_ntop(addr->sa_family, getInAddr(addr), addrstr, sizeof addrstr)) {
+      close(sock);
+      continue;
+    }
+
+    struct tunnel *tunnel = malloc(sizeof *tunnel);
+    uint64_t tid = pickTid(server);
+
+    map_set(&server->tunnelsByAddrstr, addrstr, sizeof addrstr, tunnel);
+    map_set(&server->tunnelsByTid, (void*)tid, 0, tunnel);
 
     break;
     
@@ -62,6 +99,9 @@ error mlt_server_init(struct mlt_server *server, const char *port) {
   freeaddrinfo(server_info);
 
   server->sock = sock;
+
+  map_init(&server->tunnelsByAddrstr);
+  map_init(&server->tunnelsByTid);
 
   return NULL;
 }
@@ -147,6 +187,7 @@ error mlt_server_connect(struct mlt_server *server, const char *host, const char
   return NULL;
 }
 
+// TODO: We need to free the maps and the tunnels in them.
 void mlt_server_close(struct mlt_server *server) {
   close(server->sock);
 }

@@ -4,21 +4,17 @@
 #include <string.h>
 #include "error.h"
 
-typedef uint64_t mapkey;
-
-struct mapitem {
-  mapkey  key;
-  void   *val;
-};
-
 struct map {
-  size_t          capacity,
-                  used;
-  struct mapitem *items;
+  uint8_t    *key;
+  size_t      keylen;
+  void       *value;
+  struct map *lesser,
+             *greater;
 };
 
 void   map_init(struct map *map);
-void  *map_get(struct map *map, mapkey key);
-error  map_set(struct map *map, mapkey key, void *item);
+void   map_free(struct map *map);
+void  *map_get(struct map *map, void *key, size_t keylen);
+error  map_set(struct map *map, void *key, size_t keylen, void *item);
 
 #endif

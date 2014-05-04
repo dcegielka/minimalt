@@ -1,88 +1,124 @@
 #include "map.h"
 #include <stdlib.h>
 
-static size_t insert(struct mapitem *items, size_t nitems, mapkey key, void *val) {
-  size_t mask = nitems - 1;
-
-  for (size_t i = key & mask;; i = (i + 1) & mask) {
-    struct mapitem item = items[i];
-
-    if (item.key == key) {
-      items[i].val = val;
-      return 0;
-    } else if (!item.val) {
-      items[i].key = key;
-      items[i].val = val;
-      return 1;
-    }
-  }
-}
-
 void map_init(struct map *map) {
-  map->capacity = 0;
-  map->used     = 0;
-  map->items    = NULL;
+  map->key     = NULL;
+  map->keylen  = 0;
+  map->lesser  = NULL;
+  map->greater = NULL;
 }
 
 void map_free(struct map *map) {
-  map->capacity = 0;
-  map->used     = 0;
-  free(map->items);
-  map->items = NULL;
+  if (map->keylen != 0) {
+    free(map->key);
+    map->keylen = 0;
+  } else {
+    map->key = 0;
+  }
+
+  if (map->lesser) {
+    map_free(map->lesser);
+    free(map->lesser);
+  }
+
+  if (map->greater) {
+    map_free(map->greater);
+    free(map->greater);
+  }
 }
 
-void *map_get(struct map *map, mapkey key) {
-  if (!map->items) {
+static int compareKeys(void *key1, size_t keylen1, void *key2, size_t keylen2) {
+  int comparison = keylen1 - keylen2;
+
+  if (comparison == 0) {
+    if (keylen1 == 0) {
+      return key1 - key2;
+    } else {
+      return memcmp(key1, key2, keylen1);
+    }
+  }
+
+  return comparison;
+}
+
+void *map_get(struct map *map, void *key, size_t keylen) {
+  if (map->key == NULL) {
     return NULL;
   }
 
-  return map->items[key & (map->capacity - 1)].val;
-}
+  for (;;) {
+    int comparison = compareKeys(key, keylen, map->key, map->keylen);
 
-error map_set(struct map *map, mapkey key, void *val) {
-  if (!map->items) {
-    map->capacity     = 1;
-    map->used         = 1;
-    map->items        = malloc(1 * sizeof *map->items);
-
-    if (!map->items) {
-      return "malloc failure";
-    }
-
-    map->items[0].key = key;
-    map->items[0].val = val;
-
-    return NULL;
-  }
-
-  if (map->used == map->capacity) {
-    size_t          oldCapacity = map->capacity,
-                    newCapacity = map->capacity << 1;
-    struct mapitem *oldItems    = map->items,
-                   *newItems    = malloc(newCapacity * sizeof *newItems);
-
-    if (!newItems) {
-      return "malloc failure";
-    }
-
-    memset(newItems, 0, newCapacity * sizeof *newItems);
-
-    for (size_t i = 0; i < oldCapacity; ++i) {
-      struct mapitem item = oldItems[i];
-
-      if (item.val != 0) {
-        insert(newItems, newCapacity, item.key, item.val);
+    if (comparison < 0) {
+      if (map->lesser) {
+        map = map->lesser;
+      } else {
+        return NULL;
       }
+    } else if (comparison > 0) {
+      if (map->greater) {
+        map = map->greater;
+      } else {
+        return NULL;
+      }
+    } else {
+      return map->value;
     }
-
-    free(oldItems);
-
-    map->capacity = newCapacity;
-    map->items    = newItems;
   }
- 
-  map->used += insert(map->items, map->capacity, key, val);
+}
+
+static error setKey(struct map *map, void *key, size_t keylen, void *value) {
+  if (keylen == 0) {
+    map->key = key;
+  } else {
+    if (!(map->key = malloc(keylen))) {
+      return "malloc failure";
+    }
+  }
+
+  map->keylen = keylen;
+  map->value  = value;
+
+  memcpy(map->key, key, keylen);
 
   return NULL;
+}
+
+error map_set(struct map *map, void *key, size_t keylen, void *value) {
+  if (map->key == NULL) {
+    return setKey(map, key, keylen, value);
+  }
+
+  for (;;) {
+    int comparison = compareKeys(key, keylen, map->key, map->keylen);
+
+    if (comparison < 0) {
+      if (map->lesser) {
+        map = map->lesser;
+      } else {
+        map->lesser = malloc(sizeof *map->lesser);
+
+        if (!map->lesser) {
+          return "malloc failure";
+        }
+
+        return setKey(map->lesser, key, keylen, value);
+      }
+    } else if (comparison > 0) {
+      if (map->greater) {
+        map = map->greater;
+      } else {
+        map->greater = malloc(sizeof *map->greater);
+
+        if (!map->greater) {
+          return "malloc failure";
+        }
+
+        return setKey(map->greater, key, keylen, value);
+      }
+    } else {
+      return setKey(map, key, keylen, value);
+    }
+  }
 }
 
