@@ -30,4 +30,15 @@ void assertError(const char *message, error err) {
   }
 }
 
+void assertEq_(const char *message, void *actual, void *expected) {
+  if (expected == actual) {
+    fprintf(stderr, GREEN " " SUCCESS " %s\n" CLEAR, message);
+  } else {
+    fprintf(stderr, RED " " FAILURE " %s: Expected %lu, got %lu\n" CLEAR, message, (uint64_t)expected, (uint64_t)actual);
+    exit(1);
+  }
+}
+
+#define assertEq(m,e,a) assertEq_((m),(void*)(e),(void*)(a))
+
 #endif
