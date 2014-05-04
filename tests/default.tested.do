@@ -5,6 +5,7 @@ redo-ifchange $objects
 read deps <$2.d
 rm $2.d
 redo-ifchange ${deps#*:}
-./$2.out >&2; status=$?
+status=0
+./$2.out >&2 || status=$?
 rm $2.out
 exit $status
