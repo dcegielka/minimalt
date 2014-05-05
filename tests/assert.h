@@ -30,6 +30,7 @@ void assertError(const char *message, error err) {
   }
 }
 
+#define assertEq(m,e,a) assertEq_((m),(void*)(e),(void*)(a))
 void assertEq_(const char *message, void *actual, void *expected) {
   if (expected == actual) {
     fprintf(stderr, GREEN " " SUCCESS " %s\n" CLEAR, message);
@@ -39,6 +40,17 @@ void assertEq_(const char *message, void *actual, void *expected) {
   }
 }
 
-#define assertEq(m,e,a) assertEq_((m),(void*)(e),(void*)(a))
+void assertEqBuf(const char *message, void *actual, size_t alen, void *expected, size_t elen) {
+  if (elen != alen) {
+    fprintf(stderr, RED " " FAILURE " %s: Expected buf of size %lu, but is %lu\n", message, elen, alen);
+    exit(1);
+  } else if (memcmp(actual, expected, alen) != 0) {
+    fprintf(stderr, RED " " FAILURE " %s: Expected ", message);
+    for (size_t i = 0; i < elen; ++i) fprintf(stderr, "%02x", ((uint8_t*)expected)[i]);
+    fprintf(stderr, ", got ");
+    for (size_t i = 0; i < alen; ++i) fprintf(stderr, "%02x", ((uint8_t*)actual)[i]);
+    fprintf(stderr, "\n");
+  }
+}
 
 #endif
