@@ -6,6 +6,6 @@ read deps <$2.d
 rm $2.d
 redo-ifchange ${deps#*:}
 status=0
-./$2.out >&2 || status=$?
+valgrind --error-exitcode=1 --quiet ./$2.out >&2 || status=$?
 rm $2.out
 exit $status

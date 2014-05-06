@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include "../error.h"
 
 #define RED   "\x1b[31m"
@@ -50,6 +51,9 @@ void assertEqBuf(const char *message, void *actual, size_t alen, void *expected,
     fprintf(stderr, ", got ");
     for (size_t i = 0; i < alen; ++i) fprintf(stderr, "%02x", ((uint8_t*)actual)[i]);
     fprintf(stderr, "\n");
+    exit(1);
+  } else {
+    fprintf(stderr, GREEN " " SUCCESS " %s\n" CLEAR, message);
   }
 }
 

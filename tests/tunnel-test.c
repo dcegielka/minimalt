@@ -1,30 +1,32 @@
-// ../tunnel.o ../nacl/lib/amd64/libnacl.a ../nacl/lib/amd64/randombytes.o
+// ../tunnel.o ../format.o ../nacl/lib/amd64/libnacl.a ../nacl/lib/amd64/randombytes.o
 #include "../tunnel.h"
 #include "assert.h"
-#include <alloca.h>
+#include "../format.h"
 
 int main() {
   {
     struct tunnel server,
                   client;
-    uint8_t       serverPublickey[mlt_PUBLICKEY_SIZE],
-                  serverSecretkey[mlt_SECRETKEY_SIZE];
 
-    crypto_box_keypair(serverPublickey, serverSecretkey);
+    crypto_box_keypair(server.localPublickey, server.localSecretkey);
 
-    tunnel_initClient(&client, 1, serverPublickey);
+    tunnel_initClient(&client, 1, server.localPublickey);
 
     uint8_t message[] = "Attack at dawn.",
             packet[mlt_PACKET_OVERHEAD + sizeof message];
 
     size_t packetSize = tunnel_buildPacket(&client, packet, message, sizeof message);
 
-    tunnel_initServer(&server, 1);
+    uint64_t serverTid;
+    assertError("Can inspect a packet", inspectPacket(packet, packetSize, &serverTid));
 
-    uint8_t *output = alloca(packetSize);
-    size_t   outputSize;
+    tunnel_initServer(&server, serverTid);
 
-    assertError("Can open a packet (1)", tunnel_openPacket(&server, output, packet, packetSize, &outputSize));
+    uint8_t output[packetSize];
+    size_t outputSize;
+
+    assertError("Can open a packet (1)", tunnel_openPacket(&server, packet, output, packetSize, &outputSize));
+
     assertEqBuf("Received the same message (1)", message, sizeof message, output, outputSize);
 
     uint8_t message2[] = "Ok.",
@@ -32,10 +34,10 @@ int main() {
 
     size_t packetSize2 = tunnel_buildPacket(&client, packet2, message2, sizeof message2);
 
-    uint8_t *output2 = alloca(packetSize2);
-    size_t   outputSize2;
+    uint8_t output2[packetSize2];
+    size_t  outputSize2;
 
-    assertError("Can open a packet (2)", tunnel_openPacket(&client, output2, packet2, packetSize2, &outputSize2));
+    assertError("Can open a packet (2)", tunnel_openPacket(&client, packet2, output2, packetSize2, &outputSize2));
 
     assertEqBuf("Received the same message (2)", message2, sizeof message2, output2, outputSize2);
   }

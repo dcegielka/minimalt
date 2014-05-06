@@ -1,7 +1,8 @@
 #include "format.h"
 #include <stdio.h>
+#include <ctype.h>
 
-uint64_t readUintLE64(uint8_t *buffer) {
+uint64_t readUintLE64(const uint8_t *buffer) {
   return ((uint64_t)buffer[0] << 0x00) |
          ((uint64_t)buffer[1] << 0x08) |
          ((uint64_t)buffer[2] << 0x10) |
@@ -23,9 +24,19 @@ void writeUintLE64(uint8_t *buffer, uint64_t n) {
   buffer[7] = n >> 0x38;
 }
 
-void showhex(uint8_t *buffer, size_t len) {
+void showhex(const uint8_t *buffer, size_t len) {
   for (size_t i = 0; i < len; ++i) {
     printf("%02x", buffer[i]);
+  }
+}
+
+void showascii(const uint8_t *buffer, size_t len) {
+  for (size_t i = 0; i < len; ++i) {
+    if (isprint(buffer[i])) {
+      printf("%c ", buffer[i]);
+    } else {
+      printf("%02x", buffer[i]);
+    }
   }
 }
 

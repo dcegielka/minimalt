@@ -102,6 +102,9 @@ error map_set(struct map *map, void *key, size_t keylen, void *value) {
           return "malloc failure";
         }
 
+        map->lesser->lesser  = NULL;
+        map->lesser->greater = NULL;
+
         return setKey(map->lesser, key, keylen, value);
       }
     } else if (comparison > 0) {
@@ -113,6 +116,9 @@ error map_set(struct map *map, void *key, size_t keylen, void *value) {
         if (!map->greater) {
           return "malloc failure";
         }
+
+        map->greater->lesser  = NULL;
+        map->greater->greater = NULL;
 
         return setKey(map->greater, key, keylen, value);
       }

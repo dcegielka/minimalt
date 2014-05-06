@@ -11,11 +11,13 @@ void tunnel_initClient(struct tunnel *t, uint64_t tid, void *serverPublickey) {
   t->state = TUNNEL_STATE_CLIENT_PRE_HANDSHAKE;
   crypto_box_keypair(t->localPublickey, t->localSecretkey);
   memcpy(t->remotePublickey, serverPublickey, sizeof t->remotePublickey);
+  memset(t->nonce, 0, sizeof t->nonce);
 }
 
 void tunnel_initServer(struct tunnel *t, uint64_t tid) {
   t->tid   = tid;
   t->state = TUNNEL_STATE_SERVER_PRE_HANDSHAKE;
+  memset(t->nonce, 0, sizeof t->nonce);
 }
 
 size_t tunnel_buildPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, size_t messageSize) {
@@ -29,6 +31,7 @@ size_t tunnel_buildPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, s
   memcpy(&packet[sizeof tidWithFlags], t->nonce, sizeof t->nonce);
 
   if (sendingPublickey) {
+    t->state = TUNNEL_STATE_NORMAL;
     memcpy(&packet[sizeof tidWithFlags + sizeof t->nonce],
            t->localPublickey,
            sizeof t->localPublickey);
@@ -48,13 +51,61 @@ size_t tunnel_buildPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, s
   return headerSize + sizeof crypted - crypto_box_BOXZEROBYTES;
 }
 
-void openPacket(uint8_t *packet, uint64_t *tid, ) {
-  uint64_t tidWithFlags = readUintLE64(packet),
-           tid          = tidWithFlags ^ TID_FLAGS;
-  bool     hasPublickey = tidWithFlags & PUBLICKEY_FLAG,
-           hasPuzzle    = tidWithFlags & PUZZLE_FLAG;
+error inspectPacket(const uint8_t *packet, size_t packetSize, uint64_t *tid) {
+  if (packetSize < sizeof *tid) {
+    return "Invalid packet";
+  }
 
+  *tid = readUintLE64(packet) & ~TID_FLAGS;
 
+  return NULL;
 }
 
+error tunnel_openPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, size_t packetSize, size_t *messageSize) {
+  if (packetSize < sizeof t->tid) {
+    return "Invalid packet";
+  }
+
+  uint64_t tidWithFlags       = readUintLE64(packet),
+           tid                = tidWithFlags & ~TID_FLAGS;
+  bool     hasPublickey       = tidWithFlags & PUBLICKEY_FLAG,
+           hasPuzzle          = tidWithFlags & PUZZLE_FLAG,
+           expectingPublickey = t->state == TUNNEL_STATE_SERVER_PRE_HANDSHAKE;
+  size_t   headerSize         = sizeof tid +
+                                sizeof t->nonce +
+                                (hasPublickey ? sizeof t->remotePublickey : 0),
+           contentSize        = packetSize - headerSize;
+
+  if (headerSize > packetSize) {
+    return "Invalid packet (1)";
+  }
+
+  if (hasPuzzle) {
+    return "Puzzles not supported";
+  }
+
+  if (hasPublickey && !expectingPublickey) {
+    return "Unexpected public key";
+  } else if (!hasPublickey && expectingPublickey) {
+    return "Expected public key";
+  } else if (hasPublickey && expectingPublickey) {
+    t->state = TUNNEL_STATE_NORMAL;
+    memcpy(t->remotePublickey, &packet[sizeof tid + sizeof t->nonce], sizeof t->remotePublickey);
+  }
+
+  uint8_t crypted[crypto_box_BOXZEROBYTES + contentSize];
+
+  memset(crypted, 0, crypto_box_BOXZEROBYTES);
+  memcpy(&crypted[crypto_box_BOXZEROBYTES], &packet[headerSize], contentSize);
+
+  if (crypto_box_open(crypted, crypted, sizeof crypted, &packet[sizeof tid], t->remotePublickey, t->localSecretkey) == -1) {
+    return "Invalid packet (2)";
+  }
+
+  *messageSize = sizeof crypted - crypto_box_ZEROBYTES;
+
+  memcpy(message, &crypted[crypto_box_ZEROBYTES], *messageSize);
+
+  return NULL;
+}
 
