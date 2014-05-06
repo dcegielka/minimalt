@@ -24,6 +24,7 @@ error sockListen(const char *port, int *sock) {
     return gai_strerror(err);
   }
 
+  // TODO: This loop is probably broken.
   for (struct addrinfo *p = server_info;; p = p->ai_next) {
     if ((*sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
       continue;
