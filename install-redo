@@ -2,3 +2,4 @@
 git clone https://github.com/apenwarr/redo
 cd redo
 make
+make install
