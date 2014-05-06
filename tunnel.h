@@ -17,12 +17,13 @@ enum tunnelState {
 
 // TODO: The beforenm and afternm crypto box functions should be used to speed up crypto.
 struct tunnel {
-  uint64_t tid;
-  enum tunnelState state;
-  uint8_t remotePublickey[mlt_PUBLICKEY_SIZE],
-          localPublickey[mlt_PUBLICKEY_SIZE],
-          localSecretkey[mlt_SECRETKEY_SIZE],
-          nonce[crypto_box_NONCEBYTES];
+  void             *extra;
+  uint64_t          tid;
+  enum tunnelState  state;
+  uint8_t           remotePublickey[mlt_PUBLICKEY_SIZE],
+                    localPublickey[mlt_PUBLICKEY_SIZE],
+                    localSecretkey[mlt_SECRETKEY_SIZE],
+                    nonce[crypto_box_NONCEBYTES];
 };
 
 void tunnel_initClient(struct tunnel *t, uint64_t tid, void *serverPublickey);

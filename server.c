@@ -14,7 +14,9 @@
 #include "net.h"
 #include "nacl/include/amd64/randombytes.h"
 
-#define MAX_PACKET_SIZE 4096
+struct tunnel_extra {
+  struct sockaddr_storage addr;
+};
 
 static uint64_t pickTid(struct mlt_server *server) {
   uint64_t tid;
@@ -26,11 +28,22 @@ static uint64_t pickTid(struct mlt_server *server) {
   return tid;
 }
 
+static uint64_t pickCid(struct mlt_server *server) {
+  uint64_t cid;
+
+  do {
+    randombytes((unsigned char*)&cid, sizeof cid);
+  } while (map_get(&server->tunnelsByCid, (void*)cid, 0) != NULL);
+
+  return cid;
+}
+
 error mlt_server_init(struct mlt_server *server, const char *port) {
   returnerr(sockListen(port, &server->sock));
 
   map_init(&server->tunnelsByAddrstr);
   map_init(&server->tunnelsByTid);
+  map_init(&server->tunnelsByCid);
 
   return NULL;
 }
@@ -39,7 +52,7 @@ void mlt_server_rekey(struct mlt_server *server) {
   crypto_box_keypair(server->publickey, server->secretkey);
 }
 
-error mlt_server_accept(struct mlt_server *server) {
+error mlt_server_accept(struct mlt_server *server, uint8_t *message, size_t *messageSize) {
   struct sockaddr_storage remote_addr;
   socklen_t               sin_size = sizeof remote_addr;
 
@@ -55,8 +68,6 @@ error mlt_server_accept(struct mlt_server *server) {
   returnerr(inspectPacket(packet, packetSize, &tid));
 
   struct tunnel *t = map_get(&server->tunnelsByTid, (void*)tid, 0);
-  uint8_t message[packetSize];
-  size_t messageSize;
 
   // TODO: Add tunnel to tunnelsByAddrstr
   if (t == NULL) {
@@ -66,17 +77,23 @@ error mlt_server_accept(struct mlt_server *server) {
       return "malloc failure";
     }
 
+    t->extra = malloc(sizeof(struct tunnel_extra));
+
+    if (!t->extra) {
+      return "malloc failure";
+    }
+
     tunnel_initServer(t, tid);
     memcpy(t->localPublickey, server->publickey, sizeof t->localPublickey);
     memcpy(t->localSecretkey, server->secretkey, sizeof t->localSecretkey);
   }
 
-  returnerr(tunnel_openPacket(t, packet, message, packetSize, &messageSize));
+  returnerr(tunnel_openPacket(t, packet, message, packetSize, messageSize));
 
   return NULL;
 }
 
-error mlt_server_connect(struct mlt_server *server, const char *host, const char *port, void *serverPublickey, struct mlt_conn *conn) {
+error mlt_server_connect(struct mlt_server *server, const char *host, const char *port, void *serverPublickey, uint64_t *cid) {
   struct sockaddr_storage addr;
   char addrstr[ADDRSTR_SIZE];
 
@@ -96,33 +113,40 @@ error mlt_server_connect(struct mlt_server *server, const char *host, const char
       return "malloc failure";
     }
 
+    t->extra = malloc(sizeof(struct tunnel_extra));
+
+    if (!t->extra) {
+      return "malloc failure";
+    }
+
     tunnel_initClient(t, tid, serverPublickey);
+    memcpy(&((struct tunnel_extra*)t->extra)->addr, &addr, sizeof addr);
 
     returnerr(map_set(&server->tunnelsByAddrstr, addrstr, ADDRSTR_SIZE, t));
     returnerr(map_set(&server->tunnelsByTid, (void*)tid, 0, t));
   }
 
-  conn->server = server;
-  conn->tid    = t->tid;
-  conn->cid    = 0;
+  *cid = pickCid(server);
 
-  memcpy(&conn->addr, &addr, sizeof conn->addr);
+  returnerr(map_set(&server->tunnelsByCid, (void*)*cid, 0, t));
 
   return NULL;
 }
 
-error mlt_conn_send(struct mlt_conn *conn, uint8_t *message, size_t messageSize) {
-  struct tunnel *t = map_get(&conn->server->tunnelsByTid, (void*)conn->tid, 0);
+error mlt_server_send(struct mlt_server *server, uint64_t cid, uint8_t *message, size_t messageSize) {
+  struct tunnel *t = map_get(&server->tunnelsByCid, (void*)cid, 0);
 
   if (t == NULL) {
     return "tunnel doesn't exist";
   }
 
+  struct sockaddr *addr = (struct sockaddr*)&((struct tunnel_extra*)t->extra)->addr;
+
   uint8_t packet[PACKET_OVERHEAD + messageSize];
 
   size_t packetSize = tunnel_buildPacket(t, packet, message, messageSize);
 
-  if (sendto(conn->server->sock, packet, packetSize, 0, (struct sockaddr*)&conn->addr, sizeof conn->addr) == -1) {
+  if (sendto(server->sock, packet, packetSize, 0, addr, sizeof(struct sockaddr_storage)) == -1) {
     // TODO: Make this string dependent on errno.
     return "Failed to send.";
   }
