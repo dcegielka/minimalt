@@ -12,14 +12,14 @@ int main() {
 
     crypto_box_keypair(serverPublickey, serverSecretkey);
 
-    tunnel_initClient(&client, serverPublickey);
+    tunnel_initClient(&client, 1, serverPublickey);
 
     uint8_t message[] = "Attack at dawn.",
             packet[mlt_PACKET_OVERHEAD + sizeof message];
 
     size_t packetSize = tunnel_buildPacket(&client, packet, message, sizeof message);
 
-    tunnel_initServer(&server);
+    tunnel_initServer(&server, 1);
 
     uint8_t *output = alloca(packetSize);
     size_t   outputSize;

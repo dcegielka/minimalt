@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200112L
 #include "net.h"
 
 void *get_in_addr(struct sockaddr *sa) {
