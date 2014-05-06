@@ -1,13 +1,24 @@
 #define _POSIX_C_SOURCE 200112L
 #include "net.h"
+#include <string.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <unistd.h>
 
-void *get_in_addr(struct sockaddr *sa) {
-  if (sa->sa_family == AF_INET) {
-    return &((struct sockaddr_in*)sa)->sin_addr;
-  }
-
-  return &((struct sockaddr_in6*)sa)->sin6_addr;
+void getAddrstr(struct sockaddr *sa, char *addrstr) {
+  memset(addrstr, 0, ADDRSTR_SIZE);
+  inet_ntop(AF_INET, sa, addrstr, ADDRSTR_SIZE);
 }
+
+/*static void *getInAddr(struct sockaddr *sa) {
+  if (sa->sa_family == AF_INET) {
+    return &(((struct sockaddr_in*)sa)->sin_addr);
+  } else {
+    return &(((struct sockaddr_in6*)sa)->sin6_addr);
+  }
+}*/
 
 error sockListen(const char *port, int *sock) {
   int err;
@@ -54,9 +65,9 @@ error sockListen(const char *port, int *sock) {
   return NULL;
 }
 
-error findHost(const char *host, const char *port, struct addrinfo *host_info) {
+error findHost(const char *host, const char *port, struct sockaddr *addr) {
   int err;
-  struct addrinfo hints;
+  struct addrinfo hints, *host_info;
 
   memset(&hints, 0, sizeof hints);
   hints.ai_family   = AF_UNSPEC;
@@ -66,7 +77,8 @@ error findHost(const char *host, const char *port, struct addrinfo *host_info) {
     return gai_strerror(err);
   }
 
+  memcpy(addr, host_info->ai_addr, host_info->ai_addrlen);
+
   return NULL;
 }
-
 

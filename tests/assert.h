@@ -22,7 +22,7 @@ void assert(const char *message, bool condition) {
   }
 }
 
-void assertError(const char *message, error err) {
+void assertError(const char *message, const char *err) {
   if (err) {
     fprintf(stderr, RED " " FAILURE " %s: %s\n" CLEAR, message, err);
     exit(1);

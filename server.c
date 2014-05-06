@@ -1,5 +1,4 @@
 #define _POSIX_C_SOURCE 200112L
-#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -12,93 +11,23 @@
 #include <stdbool.h>
 #include "server.h"
 #include "format.h"
+#include "net.h"
 #include "nacl/include/amd64/randombytes.h"
 
-struct tunnel {
-};
-
-static const uint64_t publickeyFlag = 1UL << 63,
-                      puzzleFlag    = 1UL << 62,
-                      tidFlags      = (1UL << 63) | (1UL << 62);
-
-static const size_t tidSize   = sizeof(uint64_t),
-                    nonceSize = crypto_box_NONCEBYTES;
+#define MAX_PACKET_SIZE 4096
 
 static uint64_t pickTid(struct mlt_server *server) {
   uint64_t tid;
 
   do {
-    randombytes((unsigned char*)&tid, sizeof tid);
+    tid = createTid();
   } while (map_get(&server->tunnelsByTid, (void*)tid, 0) != NULL);
 
   return tid;
 }
 
-static void *getInAddr(struct sockaddr *sa) {
-  if (sa->sa_family == AF_INET) {
-    return &(((struct sockaddr_in*)sa)->sin_addr);
-  } else {
-    return &(((struct sockaddr_in6*)sa)->sin6_addr);
-  }
-}
-
 error mlt_server_init(struct mlt_server *server, const char *port) {
-  int err;
-  struct addrinfo hints,
-                  *server_info;
-
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family   = AF_UNSPEC;
-  hints.ai_socktype = SOCK_DGRAM;
-  hints.ai_flags    = AI_PASSIVE;
-
-  if ((err = getaddrinfo(NULL, port, &hints, &server_info))) {
-    return gai_strerror(err);
-  }
-
-  int sock;
-
-  for (struct addrinfo *p = server_info;; p = p->ai_next) {
-    if ((sock = socket(p->ai_family, p->ai_socktype, p->ai_protocol)) == -1) {
-      continue;
-    }
-
-    int yes = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof yes) == -1) {
-      close(sock);
-      continue;
-    }
-
-    if (bind(sock, p->ai_addr, p->ai_addrlen) == -1) {
-      close(sock);
-      continue;
-    }
-
-    char addrstr[mlt_ADDRSTR_SIZE];
-
-    struct sockaddr *addr = p->ai_addr;
-
-    if (!inet_ntop(addr->sa_family, getInAddr(addr), addrstr, sizeof addrstr)) {
-      close(sock);
-      continue;
-    }
-
-    struct tunnel *tunnel = malloc(sizeof *tunnel);
-    uint64_t tid = pickTid(server);
-
-    map_set(&server->tunnelsByAddrstr, addrstr, sizeof addrstr, tunnel);
-    map_set(&server->tunnelsByTid, (void*)tid, 0, tunnel);
-
-    break;
-    
-    if (!p->ai_next) {
-      return "Could not bind to any of the addresses.";
-    }
-  }
-
-  freeaddrinfo(server_info);
-
-  server->sock = sock;
+  returnerr(sockListen(port, &server->sock));
 
   map_init(&server->tunnelsByAddrstr);
   map_init(&server->tunnelsByTid);
@@ -114,74 +43,88 @@ error mlt_server_accept(struct mlt_server *server) {
   struct sockaddr_storage remote_addr;
   socklen_t               sin_size = sizeof remote_addr;
 
-  uint8_t buffer[4096];
+  uint8_t packet[MAX_PACKET_SIZE];
 
-  ssize_t nread = recvfrom(server->sock, buffer, sizeof buffer, 0, (struct sockaddr*)&remote_addr, &sin_size);
-
-  if (nread < 0) {
+  ssize_t packetSize = recvfrom(server->sock, packet, sizeof packet, 0, (struct sockaddr*)&remote_addr, &sin_size);
+  
+  if (packetSize < 0) {
     return "Read error.";
   }
 
-  // TODO: Check nread to make sure all these things are in place, that some things aren't
-  // negative, etc.
-  // TODO: Also deal with the whole crypto_box_BOXZEROBYTES requirement.
-  uint64_t tidWithFlags = readUint64LE(buffer),
-           tid          = tidWithFlags ^ tidFlags;
-  bool     hasPublickey = tidWithFlags & publickeyFlag,
-           hasPuzzle    = tidWithFlags & puzzleFlag;
+  uint64_t tid;
+  returnerr(inspectPacket(packet, packetSize, &tid));
 
-  if (hasPuzzle) {
-    return "Received a puzzle, which isn't supported.";
+  struct tunnel *t = map_get(&server->tunnelsByTid, (void*)tid, 0);
+  uint8_t message[packetSize];
+  size_t messageSize;
+
+  // TODO: Add tunnel to tunnelsByAddrstr
+  if (t == NULL) {
+    t = malloc(sizeof *t);
+
+    if (!t) {
+      return "malloc failure";
+    }
+
+    tunnel_initServer(t, tid);
+    memcpy(t->localPublickey, server->publickey, sizeof t->localPublickey);
+    memcpy(t->localSecretkey, server->secretkey, sizeof t->localSecretkey);
   }
 
-  size_t headerSize  = tidSize + nonceSize + (hasPublickey ? mlt_PUBLICKEY_SIZE : 0),
-         contentSize = nread - headerSize;
-
-  uint8_t outputbuffer[4096];
-
-  if (crypto_box_open(outputbuffer, &buffer[headerSize], contentSize, &buffer[tidSize], &buffer[tidSize + nonceSize], server->secretkey) != 0) {
-    return "crypto_box_open failure";
-  }
-
-  tid = tid | tid; // Temporary so compiler doesn't complain.
+  returnerr(tunnel_openPacket(t, packet, message, packetSize, &messageSize));
 
   return NULL;
 }
 
-error mlt_server_connect(struct mlt_server *server, const char *host, const char *port, void *serverPublickey) {
-  int err;
-  struct addrinfo hints, *remote_info;
+error mlt_server_connect(struct mlt_server *server, const char *host, const char *port, void *serverPublickey, struct mlt_conn *conn) {
+  struct sockaddr_storage addr;
+  char addrstr[ADDRSTR_SIZE];
 
-  memset(&hints, 0, sizeof hints);
-  hints.ai_family   = AF_UNSPEC;
-  hints.ai_socktype = SOCK_DGRAM;
+  memset(&addr, 0, sizeof addr);
+  returnerr(findHost(host, port, (struct sockaddr*)&addr));
 
-  if ((err = getaddrinfo(host, port, &hints, &remote_info))) {
-    return gai_strerror(err);
+  getAddrstr((struct sockaddr*)&addr, addrstr);
+
+  struct tunnel *t = map_get(&server->tunnelsByAddrstr, addrstr, ADDRSTR_SIZE);
+
+  if (t == NULL) {
+    uint64_t tid = pickTid(server);
+
+    t = malloc(sizeof *t);
+
+    if (!t) {
+      return "malloc failure";
+    }
+
+    tunnel_initClient(t, tid, serverPublickey);
+
+    returnerr(map_set(&server->tunnelsByAddrstr, addrstr, ADDRSTR_SIZE, t));
+    returnerr(map_set(&server->tunnelsByTid, (void*)tid, 0, t));
   }
 
-  uint8_t  message[] = "Attack at dawn.",
-           buffer[tidSize + nonceSize + mlt_PUBLICKEY_SIZE + crypto_box_ZEROBYTES + sizeof message];
-  uint64_t tid = 123 | publickeyFlag;
+  conn->server = server;
+  conn->tid    = t->tid;
+  conn->cid    = 0;
 
-  uint8_t publickey[mlt_PUBLICKEY_SIZE],
-          secretkey[mlt_SECRETKEY_SIZE];
+  memcpy(&conn->addr, &addr, sizeof conn->addr);
 
-  crypto_box_keypair(publickey, secretkey);
+  return NULL;
+}
 
-  writeUint64LE(buffer, tid);
-  memset(&buffer[tidSize], 0, nonceSize);
-  memcpy(&buffer[tidSize + nonceSize], publickey, mlt_PUBLICKEY_SIZE);
-  memset(&buffer[tidSize + nonceSize + mlt_PUBLICKEY_SIZE], 0, crypto_box_ZEROBYTES);
-  memcpy(&buffer[tidSize + nonceSize + mlt_PUBLICKEY_SIZE + crypto_box_ZEROBYTES], message, sizeof message);
+error mlt_conn_send(struct mlt_conn *conn, uint8_t *message, size_t messageSize) {
+  struct tunnel *t = map_get(&conn->server->tunnelsByTid, (void*)conn->tid, 0);
 
-  crypto_box(&buffer[tidSize + nonceSize + mlt_PUBLICKEY_SIZE], &buffer[tidSize + nonceSize + mlt_PUBLICKEY_SIZE], crypto_box_ZEROBYTES + sizeof message, &buffer[tidSize], serverPublickey, secretkey);
+  if (t == NULL) {
+    return "tunnel doesn't exist";
+  }
 
-  // We might need to iterate the addrinfo like in accept above.
-  size_t nsent = sendto(server->sock, buffer, sizeof buffer, 0, remote_info->ai_addr, remote_info->ai_addrlen);
+  uint8_t packet[PACKET_OVERHEAD + messageSize];
 
-  if (nsent < sizeof buffer) {
-    return "Didn't send enough.";
+  size_t packetSize = tunnel_buildPacket(t, packet, message, messageSize);
+
+  if (sendto(conn->server->sock, packet, packetSize, 0, (struct sockaddr*)&conn->addr, sizeof conn->addr) == -1) {
+    // TODO: Make this string dependent on errno.
+    return "Failed to send.";
   }
 
   return NULL;
