@@ -19,10 +19,11 @@ int main() {
   } else {
     uint8_t received[MAX_PACKET_SIZE];
     size_t  receivedSize;
+    uint64_t cid;
 
     // Bob
     assertError("Can initialize Bob", mlt_server_init(&bob, "8001"));
-    assertError("Bob can receive from Alice", mlt_server_accept(&bob, received, &receivedSize));
+    assertError("Bob can receive from Alice", mlt_server_accept(&bob, &cid, received, &receivedSize));
     assertEqBuf("Bob's received message is the same", received, receivedSize, message, sizeof message);
   }
 }

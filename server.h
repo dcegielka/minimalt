@@ -23,10 +23,9 @@ struct mlt_server {
 
 error mlt_server_init   (struct mlt_server *server, const char *port);
 void  mlt_server_rekey  (struct mlt_server *server);
-error mlt_server_accept (struct mlt_server *server, uint8_t *message, size_t *messageSize);
 error mlt_server_connect(struct mlt_server *server, const char *host, const char *port, void* serverPublickey, uint64_t *cid);
+error mlt_server_send   (struct mlt_server *server, uint64_t cid, uint8_t *message, size_t messageSize);
+error mlt_server_accept (struct mlt_server *server, uint64_t *cid, uint8_t *message, size_t *messageSize);
 void  mlt_server_close  (struct mlt_server *server);
-
-error mlt_server_send(struct mlt_server *server, uint64_t cid, uint8_t *message, size_t messageSize);
 
 #endif

@@ -52,7 +52,7 @@ void mlt_server_rekey(struct mlt_server *server) {
   crypto_box_keypair(server->publickey, server->secretkey);
 }
 
-error mlt_server_accept(struct mlt_server *server, uint8_t *message, size_t *messageSize) {
+error mlt_server_accept(struct mlt_server *server, uint64_t *cid, uint8_t *message, uint64_t *messageSize) {
   struct sockaddr_storage remote_addr;
   socklen_t               sin_size = sizeof remote_addr;
 
@@ -89,6 +89,15 @@ error mlt_server_accept(struct mlt_server *server, uint8_t *message, size_t *mes
   }
 
   returnerr(tunnel_openPacket(t, packet, message, packetSize, messageSize));
+
+  if (*messageSize < sizeof *cid) {
+    return "Message too short";
+  }
+
+  *messageSize -= sizeof *cid;
+
+  *cid = readUint64LE(message);
+  memmove(message, message + sizeof *cid, *messageSize);
 
   return NULL;
 }
@@ -140,11 +149,16 @@ error mlt_server_send(struct mlt_server *server, uint64_t cid, uint8_t *message,
     return "tunnel doesn't exist";
   }
 
+  uint8_t headerMessage[sizeof cid + messageSize];
+
+  writeUint64LE(headerMessage, cid);
+  memcpy(headerMessage + sizeof cid, message, messageSize);
+
   struct sockaddr *addr = (struct sockaddr*)&((struct tunnel_extra*)t->extra)->addr;
 
   uint8_t packet[PACKET_OVERHEAD + messageSize];
 
-  size_t packetSize = tunnel_buildPacket(t, packet, message, messageSize);
+  size_t packetSize = tunnel_buildPacket(t, packet, headerMessage, sizeof headerMessage);
 
   if (sendto(server->sock, packet, packetSize, 0, addr, sizeof(struct sockaddr_storage)) == -1) {
     // TODO: Make this string dependent on errno.
