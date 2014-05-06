@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <ctype.h>
 
-uint64_t readUintLE64(const uint8_t *buffer) {
+uint64_t readUint64LE(const uint8_t *buffer) {
   return ((uint64_t)buffer[0] << 0x00) |
          ((uint64_t)buffer[1] << 0x08) |
          ((uint64_t)buffer[2] << 0x10) |
@@ -13,7 +13,7 @@ uint64_t readUintLE64(const uint8_t *buffer) {
          ((uint64_t)buffer[7] << 0x38);
 }
 
-void writeUintLE64(uint8_t *buffer, uint64_t n) {
+void writeUint64LE(uint8_t *buffer, uint64_t n) {
   buffer[0] = n >> 0x00;
   buffer[1] = n >> 0x08;
   buffer[2] = n >> 0x10;

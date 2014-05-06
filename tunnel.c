@@ -29,7 +29,7 @@ size_t tunnel_buildPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, s
                                      sizeof t->nonce +
                                      (sendingPublickey ? sizeof t->localPublickey : 0);
 
-  writeUintLE64(packet, tidWithFlags);
+  writeUint64LE(packet, tidWithFlags);
   memcpy(&packet[sizeof tidWithFlags], t->nonce, sizeof t->nonce);
 
   if (sendingPublickey) {
@@ -58,7 +58,7 @@ error inspectPacket(const uint8_t *packet, size_t packetSize, uint64_t *tid) {
     return "Invalid packet";
   }
 
-  *tid = readUintLE64(packet) & ~TID_FLAGS;
+  *tid = readUint64LE(packet) & ~TID_FLAGS;
 
   return NULL;
 }
@@ -68,7 +68,7 @@ error tunnel_openPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, siz
     return "Invalid packet";
   }
 
-  uint64_t tidWithFlags       = readUintLE64(packet),
+  uint64_t tidWithFlags       = readUint64LE(packet),
            tid                = tidWithFlags & ~TID_FLAGS;
   bool     hasPublickey       = tidWithFlags & PUBLICKEY_FLAG,
            hasPuzzle          = tidWithFlags & PUZZLE_FLAG,

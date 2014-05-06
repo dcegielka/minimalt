@@ -125,7 +125,7 @@ error mlt_server_accept(struct mlt_server *server) {
   // TODO: Check nread to make sure all these things are in place, that some things aren't
   // negative, etc.
   // TODO: Also deal with the whole crypto_box_BOXZEROBYTES requirement.
-  uint64_t tidWithFlags = readUintLE64(buffer),
+  uint64_t tidWithFlags = readUint64LE(buffer),
            tid          = tidWithFlags ^ tidFlags;
   bool     hasPublickey = tidWithFlags & publickeyFlag,
            hasPuzzle    = tidWithFlags & puzzleFlag;
@@ -169,7 +169,7 @@ error mlt_server_connect(struct mlt_server *server, const char *host, const char
 
   crypto_box_keypair(publickey, secretkey);
 
-  writeUintLE64(buffer, tid);
+  writeUint64LE(buffer, tid);
   memset(&buffer[tidSize], 0, nonceSize);
   memcpy(&buffer[tidSize + nonceSize], publickey, mlt_PUBLICKEY_SIZE);
   memset(&buffer[tidSize + nonceSize + mlt_PUBLICKEY_SIZE], 0, crypto_box_ZEROBYTES);
