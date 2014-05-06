@@ -15,6 +15,7 @@ enum tunnelState {
   TUNNEL_STATE_NORMAL, TUNNEL_STATE_CLIENT_PRE_HANDSHAKE, TUNNEL_STATE_SERVER_PRE_HANDSHAKE
 };
 
+// TODO: The beforenm and afternm crypto box functions should be used to speed up crypto.
 struct tunnel {
   uint64_t tid;
   enum tunnelState state;

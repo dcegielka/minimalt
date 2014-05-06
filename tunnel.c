@@ -20,6 +20,8 @@ void tunnel_initServer(struct tunnel *t, uint64_t tid) {
   memset(t->nonce, 0, sizeof t->nonce);
 }
 
+// TODO: This should probably be refactored so that the indices and stuff are more sane; to prevent
+//       memory issues.
 size_t tunnel_buildPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, size_t messageSize) {
   const bool      sendingPublickey = t->state == TUNNEL_STATE_CLIENT_PRE_HANDSHAKE;
   const uint64_t  tidWithFlags     = t->tid | (sendingPublickey ? PUBLICKEY_FLAG : 0);
