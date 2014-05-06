@@ -4,7 +4,7 @@
 
 void fatal(error err) {
   if (err) {
-    puts(err);
+    fprintf(stderr, "%s\n", err);
     exit(1);
   }
 }
