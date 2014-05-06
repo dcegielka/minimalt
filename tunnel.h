@@ -33,4 +33,6 @@ error inspectPacket(const uint8_t *packet, size_t packetSize, uint64_t *tid);
 size_t tunnel_buildPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, size_t messageSize);
 error tunnel_openPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, size_t packetSize, size_t *messageSize);
 
+uint64_t createTid();
+
 #endif

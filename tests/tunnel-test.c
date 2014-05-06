@@ -10,7 +10,9 @@ int main() {
 
     crypto_box_keypair(server.localPublickey, server.localSecretkey);
 
-    tunnel_initClient(&client, 1, server.localPublickey);
+    uint64_t tid = createTid();
+
+    tunnel_initClient(&client, tid, server.localPublickey);
 
     uint8_t message[] = "Attack at dawn.",
             packet[mlt_PACKET_OVERHEAD + sizeof message];
@@ -19,6 +21,7 @@ int main() {
 
     uint64_t serverTid;
     assertError("Can inspect a packet", inspectPacket(packet, packetSize, &serverTid));
+    assertEq("Received the same tid", serverTid, tid);
 
     tunnel_initServer(&server, serverTid);
 

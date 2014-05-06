@@ -1,6 +1,7 @@
 #include "tunnel.h"
 #include <stdbool.h>
 #include "format.h"
+#include "nacl/include/amd64/randombytes.h"
 
 #define PUBLICKEY_FLAG (1LU << 63)
 #define PUZZLE_FLAG    (1LU << 62)
@@ -109,5 +110,13 @@ error tunnel_openPacket(struct tunnel *t, uint8_t *packet, uint8_t *message, siz
   memcpy(message, &crypted[crypto_box_ZEROBYTES], *messageSize);
 
   return NULL;
+}
+
+uint64_t createTid() {
+  uint64_t tid;
+
+  randombytes((unsigned char*)&tid, sizeof tid);
+
+  return tid & ~TID_FLAGS;
 }
 
