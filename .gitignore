@@ -4,6 +4,7 @@ server
 client
 *.d
 *.o
+*.a
 nacl
 nacl-20110221
 nacl-20110221.tar.bz2

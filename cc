@@ -1,5 +1,5 @@
 #!/bin/bash
-gcc -g -Wall -Werror -Wextra -std=c99 $* >&2 2>err
+gcc -fpic -g -Wall -Werror -Wextra -std=c99 $* >&2 2>err
 status=$?
 if [ $status -ne 0 ]
 then
