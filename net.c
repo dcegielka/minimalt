@@ -79,6 +79,8 @@ error findHost(const char *host, const char *port, struct sockaddr *addr) {
 
   memcpy(addr, host_info->ai_addr, host_info->ai_addrlen);
 
+  freeaddrinfo(host_info);
+
   return NULL;
 }
 

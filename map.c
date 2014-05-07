@@ -1,9 +1,11 @@
 #include "map.h"
 #include <stdlib.h>
 
+// TODO: Because the top isn't distinguished from the other nodes, the top node never gets used to hold values!
 void map_init(struct map *map) {
   map->key     = NULL;
   map->keylen  = 0;
+  map->value   = NULL;
   map->lesser  = NULL;
   map->greater = NULL;
 }

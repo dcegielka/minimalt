@@ -86,6 +86,8 @@ error mlt_server_accept(struct mlt_server *server, uint64_t *cid, uint8_t *messa
     tunnel_initServer(t, tid);
     memcpy(t->localPublickey, server->publickey, sizeof t->localPublickey);
     memcpy(t->localSecretkey, server->secretkey, sizeof t->localSecretkey);
+
+    returnerr(map_set(&server->tunnelsByTid, (void*)tid, 0, t));
   }
 
   returnerr(tunnel_openPacket(t, packet, message, packetSize, messageSize));
@@ -168,8 +170,30 @@ error mlt_server_send(struct mlt_server *server, uint64_t cid, uint8_t *message,
   return NULL;
 }
 
-// TODO: We need to free the maps and the tunnels in them.
+static void freeTunnels(struct map *map) {
+  struct tunnel *t = map->value;
+
+  if (t != NULL) {
+    free(t->extra);
+    free(t);
+  }
+
+  if (map->lesser) {
+    freeTunnels(map->lesser);
+  }
+
+  if (map->greater) {
+    freeTunnels(map->greater);
+  }
+}
+
+// TODO: Free the tunnels in the maps.
 void mlt_server_close(struct mlt_server *server) {
   close(server->sock);
+
+  freeTunnels(&server->tunnelsByTid);
+  map_free(&server->tunnelsByAddrstr);
+  map_free(&server->tunnelsByTid);
+  map_free(&server->tunnelsByCid);
 }
 
