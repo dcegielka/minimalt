@@ -68,6 +68,10 @@ void *map_get(struct map *map, void *key, size_t keylen) {
 }
 
 static error setKey(struct map *map, void *key, size_t keylen, void *value) {
+  if (map->keylen != 0 && map->key != NULL) {
+    free(map->key);
+  }
+
   if (keylen == 0) {
     map->key = key;
   } else {
@@ -104,6 +108,8 @@ error map_set(struct map *map, void *key, size_t keylen, void *value) {
 
         map->lesser->lesser  = NULL;
         map->lesser->greater = NULL;
+        map->lesser->key     = NULL;
+        map->lesser->keylen  = keylen;
 
         return setKey(map->lesser, key, keylen, value);
       }
@@ -119,6 +125,8 @@ error map_set(struct map *map, void *key, size_t keylen, void *value) {
 
         map->greater->lesser  = NULL;
         map->greater->greater = NULL;
+        map->greater->key     = NULL;
+        map->greater->keylen  = keylen;
 
         return setKey(map->greater, key, keylen, value);
       }
