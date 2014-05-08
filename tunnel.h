@@ -1,11 +1,15 @@
 #ifndef TUNNEL_H
 #define TUNNEL_H
 #include "nacl/include/amd64/crypto_box.h"
+#include "nacl/include/amd64/randombytes.h"
 #include <stdint.h>
 #include <string.h>
 #include "error.h"
 #include <unistd.h>
 
+#define PUBLICKEY_FLAG (1LU << 63)
+#define PUZZLE_FLAG    (1LU << 62)
+#define TID_FLAGS      (PUBLICKEY_FLAG | PUZZLE_FLAG)
 #define mlt_SECRETKEY_SIZE crypto_box_SECRETKEYBYTES
 #define mlt_PUBLICKEY_SIZE crypto_box_PUBLICKEYBYTES
 #define mlt_ADDRSTR_SIZE   INET6_ADDRSTRLEN

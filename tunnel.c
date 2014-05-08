@@ -1,11 +1,6 @@
 #include "tunnel.h"
 #include <stdbool.h>
 #include "format.h"
-#include "nacl/include/amd64/randombytes.h"
-
-#define PUBLICKEY_FLAG (1LU << 63)
-#define PUZZLE_FLAG    (1LU << 62)
-#define TID_FLAGS      (PUBLICKEY_FLAG | PUZZLE_FLAG)
 
 void tunnel_initClient(struct tunnel *t, uint64_t tid, void *serverPublickey) {
   t->tid   = tid;
